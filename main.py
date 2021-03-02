@@ -2,6 +2,7 @@
 from flask import Flask
 from flask import request
 from flask import jsonify
+from flask import send_file
 
 # PyAudio Imports
 import alsaaudio
@@ -13,9 +14,10 @@ import json
 app = Flask(__name__)
 # End point for recording audio of child
 @app.route('/recording', methods = ['GET'])
-def recording(length):
-	capture_recording(length)
-	return "recording"
+def recording():
+	length = request.args.get('length')
+	file = capture_recording(length)
+	return file
 
 # Functionality for recording audio
 def capture_recording(length):
@@ -25,6 +27,7 @@ def capture_recording(length):
 	chunk = 4096 # 2^12 samples for buffer
 	dev_index = 2 # device index found by p.get_device_info_by_index(ii)
 	wav_output_filename = 'output.wav' # name of .wav file
+	path_to_file = "/output.wav"
 
 	audio = pyaudio.PyAudio() # create pyaudio instantiation
 
@@ -54,6 +57,8 @@ def capture_recording(length):
 	wavefile.setframerate(samp_rate)
 	wavefile.writeframes(b''.join(frames))
 	wavefile.close()
+
+	return send_file(path_to_file, mimetype="audio/wav",as_attachment=True, attachment_filename="output.wav")
 
 
 
