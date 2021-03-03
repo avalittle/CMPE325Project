@@ -24,13 +24,11 @@ def playback_recording(filepath):
     p = alsaaudio.PCM(cardindex=1)
     p.setrate(96000)
     file = wave.open('sounds/' + str(filepath), 'rb')
-    print('Made it here')
     data = file.readframes(1024)
     
     while data:
         p.write(data)
         data = file.readframes(1024)
-    print('Made it here 2')
 
 def change_volume(number):
 	m = alsaaudio.Mixer(cardindex=1)

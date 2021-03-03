@@ -57,12 +57,10 @@ def post_recording():
 	file = request.files['file']
 	try:
 		save_file(str(file_name), file)
-        	playback_recording(file_name)
-		delete_file('sounds/' + str(file_name))
 	except Exception as e:
         	return error(500, 'Internal Server Error', str(e))
 
-	return success(200, 'Recording played succesfully!')
+	return success(200, 'Recording saved succesfully!')
 
 ################################################################################
 ################################  Playback  ####################################
@@ -112,6 +110,8 @@ def playback():
 
 	try:
 		save_file(str(file_name), file)
+		playback_recording(file_name)
+		delete_file('sounds/' + str(file_name))
 	except Exception as e:
 		return error(500, 'Internal Server Error', str(e))
 
