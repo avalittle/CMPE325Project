@@ -1,94 +1,154 @@
+#!/usr/bin/python
+import os
+from os import listdir
+from os.path import isfile, join
+
 # Flask Imports
 from flask import Flask
 from flask import request
 from flask import jsonify
-from flask import send_file
+from flask import send_file, send_from_directory
 
-# PyAudio Imports
-import alsaaudio
-import pyaudio
-import wave
-
-import json
+# Custom Imports
+from api import success, error
+from files import save_file, delete_file
+from audio import do_recording, playback_recording, change_volume
 
 app = Flask(__name__)
-# End point for recording audio of child
-@app.route('/recording', methods = ['GET'])
-def recording():
-	length = request.args.get('length')
-	file = capture_recording(length)
-	return file
+################################################################################
+################################  Recording  ###################################
+################################################################################
 
-# Functionality for recording audio
-def capture_recording(length):
-	form_1 = pyaudio.paInt16 # 16-bit resolution
-	chans = 1 # 1 channel
-	samp_rate = 44100 # 44.1kHz sampling rate
-	chunk = 4096 # 2^12 samples for buffer
-	dev_index = 2 # device index found by p.get_device_info_by_index(ii)
-	wav_output_filename = 'output.wav' # name of .wav file
-	path_to_file = "/output.wav"
+@app.route('/recording', methods=['GET'])
+def get_recording():
+    print ('Getting a voice recording from the server!')
 
-	audio = pyaudio.PyAudio() # create pyaudio instantiation
+    length = request.args.get('length')
+    if length is None:
+        length = 10
 
-	# create pyaudio stream
-	stream = audio.open(format = form_1,rate = samp_rate,channels = chans, \
-                    input_device_index = dev_index,input = True, \
-                    frames_per_buffer=chunk)
-	print("recording")
-	frames = []
-
-	# loop through stream and append audio chunks to frame array
-	for ii in range(0,int((samp_rate/chunk)*length)):
-		data = stream.read(chunk)
-		frames.append(data)
-
-	print("finished recording")
-
-	# stop the stream, close it, and terminate the pyaudio instantiation
-	stream.stop_stream()
-	stream.close()
-	audio.terminate()
-
-	# save the audio frames as .wav file
-	wavefile = wave.open(wav_output_filename,'wb')
-	wavefile.setnchannels(chans)
-	wavefile.setsampwidth(audio.get_sample_size(form_1))
-	wavefile.setframerate(samp_rate)
-	wavefile.writeframes(b''.join(frames))
-	wavefile.close()
-
-	return send_file(path_to_file, mimetype="audio/wav",as_attachment=True, attachment_filename="output.wav")
+    if int(length) < 0:
+        return error(400, 'Validation Error',
+                     'Recording length must be greater than 0!')
+    try:
+        do_recording(int(length))
+        return send_from_directory('sounds/',
+                                   filename='captured_recording.wav',
+                                   as_attachment=True)
+    except Exception as e:
+        return error(500, 'Internal Server Error', str(e))
 
 
+    return success(200, 'Recorded succesfully!')
 
-@app.route ('/playback', methods = ['POST'])
+# Makes bear talk
+@app.route('/recording', methods=['POST'])
+def post_recording():
+    print('Sending a voice recording to the server!')
+	
+    if 'fileName' not in request.args: 
+        return error(400, 'Validation Error', 'You must supply a file name')
+	
+    file_name = request.args['fileName']
+    try: 
+        playback_recording(file_name)
+    except Exception as e:
+        return error(500, 'Internal Server Error', str(e))
+
+    return success(200, 'Recording played succesfully!')
+
+################################################################################
+################################  Playback  ####################################
+################################################################################
+# Returns list of available audio sounds to play on bear (saved sounds)
+
+@app.route('/playback', methods=['GET'])
+def getAllPlaybacks():
+    # items = { 
+    #     'items': [
+    #         { 
+    #             'displayName': 'Ava Is the best girlfriend ever!!!!',
+    #             'fileName': 'ava.wav'
+    #         },
+    #         { 
+    #             'displayName': 'WOOOOOO',
+    #             'fileName': 'test.wav'
+    #         },
+    #     ]
+    #  } 
+    files = [f for f in listdir('sounds/') if isfile (join('sounds/', f))]
+    files = {'files': files}
+
+    return success(200, 'Succesfully retrieved audio files!', files)
+
+
+@app.route('/playback', methods=['PUT'])
 def playback():
-	print ("Playback baby!")
-	return "playback"
+	msg = 'Request to upload file received'
+	print(request.files)
+
+	# Validate file
+	if 'file' not in request.files:
+		return error(400, 'Validation Error', 'You must supply a file')
+
+	# Validate display name
+	if 'displayName' not in request.form:
+		return error(400, 'Validation Error', 'You must supply a display name')
+
+	if 'fileName' not in request.form:
+		return error(400, 'Validation Error', 'You must supply a file name')
+
+	display_name = request.form['displayName']
+	file_name = request.form['fileName']
+	file = request.files['file']
+
+	try:
+		save_file(str(file_name), file)
+	except Exception as e:
+		return error(500, 'Internal Server Error', str(e))
+
+	return success(200, msg)
 
 # Endpoint for playing sound on bear
-@app.route('/playback/<audio_file>', methods = ['POST'])
-def playbackSpecific(audio_file):
-	print("Playing a specific audio recording %s" % str(audio_file))
-	playback_recording(audio_file)
-	return "Played recording!"
 
-# Returns list of available audio sounds to play on bear (saved sounds)
-@app.route('/playback', methods = ['GET'])
-def getAllPlaybacks():
-	return json.dumps(['ava1', 'ava2'])
+@app.route('/playback/<file>', methods=['POST'])
+def playbackFile(file):
+    msg = 'Playing a specific audio recording %s' % str(file)
+    print(msg)
+    #if 'fileName' not in request.form: 
+        #return error(400, 'Validation Error', 'You must supply a file name')
+	
+    #file = request.form['fileName']
+    try: 
+        playback_recording(file)
+    except Exception as e:
+        return error(500, 'Internal Server Error', str(e))
 
-# Functionality for playing sound on bear
-def playback_recording(audio_file):
-	p = alsaaudio.PCM(cardindex=1)
-	p.setrate(96000)
-	file = wave.open('saved_sounds/' + str(audio_file), 'rb')
-	data = file.readframes(1024)
+    return success(200, msg)
 
-	while data:
-		p.write(data)
-		data = file.readframes(1024)
+
+@app.route('/playback/<file>', methods=['DELETE'])
+def deletePlayback(file):
+    msg = 'Request to delete file %s received' % file
+    print(msg)
+    
+    if not os.path.exists('sounds/' + str(file)):
+        return success(204, msg)
+    else:
+        delete_file('sounds/' + str(file))
+        return success(200, msg)
+
+
+################################################################################
+################################  Volume  ######################################
+################################################################################
+
+@app.route('/volume', methods=['POST'])
+def volume():
+    msg = 'Changing volume on teddbyear'
+    print(msg)
+    change_volume(5)
+    return success(200, msg)
 
 if __name__ == '__main__':
-	app.run(debug=True, port=80, host='0.0.0.0')
+    app.run(debug=True, port=80, host='0.0.0.0')
