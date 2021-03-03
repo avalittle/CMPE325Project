@@ -1,5 +1,5 @@
 # PyAudio Imports
-# import alsaaudio
+import alsaaudio
 # import pyaudio
 import wave
 import sys
@@ -9,28 +9,36 @@ import getopt
 def do_recording(time):
     print("Doing recording")
 
-    out_file = '../sounds/captured_recording.wav'
+    out_file = 'sounds/captured_recording.wav'
     opts, args = getopt.getopt(sys.argv[1:], 'd:')
     for o, a in opts: 
         if o == '-f':
             out_file = a
         if o == '-l':
-            length = a
+            time = a
     os.system('arecord -f S16_LE -c 2 -r 96000 -d ' + str(time) + ' ' + out_file)
 
 def playback_recording(filepath):
     print("Playing recording")
+    print(filepath)
     p = alsaaudio.PCM(cardindex=1)
     p.setrate(96000)
-    file = wave.open('saved_sounds/' + str(filepath), 'rb')
+    file = wave.open('sounds/' + str(filepath), 'rb')
+    print('Made it here')
     data = file.readframes(1024)
     
     while data:
         p.write(data)
         data = file.readframes(1024)
+    print('Made it here 2')
 
-def change_volume(number): 
-    print("Changing volume")
+def change_volume(number):
+	m = alsaaudio.Mixer(cardindex=1)
+	vol = m.getvolume()
+	vol = int(vol[0])
+	m.setvolume(number+vol) 
+	print("Changing volume")
+
 
 
 

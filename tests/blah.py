@@ -4,7 +4,7 @@ import getopt
 
 if __name__ == '__main__':
 
-	out_file = '../sounds/blah.wav'
+	out_file = '../sounds/hello.wav'
 	length = 5
 	opts, args = getopt.getopt(sys.argv[1:], 'd:')
 	for o, a in opts: 

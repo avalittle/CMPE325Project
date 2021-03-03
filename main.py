@@ -3,6 +3,7 @@ import os
 from os import listdir
 from os.path import isfile, join
 
+import time
 # Flask Imports
 from flask import Flask
 from flask import request
@@ -19,6 +20,7 @@ app = Flask(__name__)
 ################################  Recording  ###################################
 ################################################################################
 
+# Works on Pi
 @app.route('/recording', methods=['GET'])
 def get_recording():
     print ('Getting a voice recording from the server!')
@@ -32,6 +34,7 @@ def get_recording():
                      'Recording length must be greater than 0!')
     try:
         do_recording(int(length))
+	time.sleep(int(length))
         return send_from_directory('sounds/',
                                    filename='captured_recording.wav',
                                    as_attachment=True)
@@ -41,27 +44,32 @@ def get_recording():
 
     return success(200, 'Recorded succesfully!')
 
-# Makes bear talk
+# Makes bear talk but doesn't save file
 @app.route('/recording', methods=['POST'])
 def post_recording():
-    print('Sending a voice recording to the server!')
-	
-    if 'fileName' not in request.args: 
-        return error(400, 'Validation Error', 'You must supply a file name')
-	
-    file_name = request.args['fileName']
-    try: 
-        playback_recording(file_name)
-    except Exception as e:
-        return error(500, 'Internal Server Error', str(e))
 
-    return success(200, 'Recording played succesfully!')
+	if 'file' not in request.files:
+		return error(400, 'Validation Error', 'You must supply a file!')
+	if 'fileName' not in request.form: 
+		return error(400, 'Validation Error', 'You must supply a file name')
+
+	file_name = request.form['fileName']
+	file = request.files['file']
+	try:
+		save_file(str(file_name), file)
+        	playback_recording(file_name)
+		delete_file('sounds/' + str(file_name))
+	except Exception as e:
+        	return error(500, 'Internal Server Error', str(e))
+
+	return success(200, 'Recording played succesfully!')
 
 ################################################################################
 ################################  Playback  ####################################
 ################################################################################
 # Returns list of available audio sounds to play on bear (saved sounds)
 
+# Works on Pi. Not using display name
 @app.route('/playback', methods=['GET'])
 def getAllPlaybacks():
     # items = { 
@@ -81,7 +89,7 @@ def getAllPlaybacks():
 
     return success(200, 'Succesfully retrieved audio files!', files)
 
-
+# Works on Pi. 
 @app.route('/playback', methods=['PUT'])
 def playback():
 	msg = 'Request to upload file received'
@@ -111,6 +119,7 @@ def playback():
 
 # Endpoint for playing sound on bear
 
+# Works on Pi. 
 @app.route('/playback/<file>', methods=['POST'])
 def playbackFile(file):
     msg = 'Playing a specific audio recording %s' % str(file)
@@ -126,7 +135,7 @@ def playbackFile(file):
 
     return success(200, msg)
 
-
+# Works on Pi
 @app.route('/playback/<file>', methods=['DELETE'])
 def deletePlayback(file):
     msg = 'Request to delete file %s received' % file
@@ -145,10 +154,16 @@ def deletePlayback(file):
 
 @app.route('/volume', methods=['POST'])
 def volume():
-    msg = 'Changing volume on teddbyear'
-    print(msg)
-    change_volume(5)
-    return success(200, msg)
+	msg = 'Changing volume on teddbyear'
+ 	print(msg)
+	change_in_vol = request.args.get('changeInVolume')
+	if change_in_vol is None:
+		change_in_vol = 0
+	try:
+		change_volume(int(change_in_vol))
+	except Exception as e:
+		return error(500, 'Internal Server Error', str(e))
+	return success(200, msg)
 
 if __name__ == '__main__':
     app.run(debug=True, port=80, host='0.0.0.0')
